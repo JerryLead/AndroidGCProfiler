@@ -1,5 +1,4 @@
 class GCEvent:
-
     def __init__(self, time, gcCause, freedObjNum, freedObjSize, largeObjNum, largeObjSize,
                  used, allocated, gcPauseTime, gcTotalTime):
         self.time = time
@@ -44,7 +43,7 @@ class GCEvent:
         return self.gcTotalTime
 
     def println(self):
-        print(self.time + '|' + self.gcCause + '|' + str(self.freedObjNum) + '|'
+        print(str(self.time) + '|' + self.gcCause + '|' + str(self.freedObjNum) + '|'
               + str(self.freedObjSize) + 'MB|' + str(self.largeObjNum) + '|'
               + str(self.largeObjSize) + 'MB|' + str(self.used) + 'MB|' + str(self.allocated) + 'MB|'
               + str(self.gcPauseTime) + 'ms|' + str(self.gcTotalTime)) + 'ms'
