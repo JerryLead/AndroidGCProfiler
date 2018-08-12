@@ -1,6 +1,5 @@
 # class FileReader:
-#
-#     @staticmethod
+#      @staticmethod
 def readLines(textFile):
     lines = []
     file = open(textFile)
@@ -9,5 +8,5 @@ def readLines(textFile):
         if not line:
             break
         lines.append(line.strip('\n'))
-
+        #print(line)
     return lines

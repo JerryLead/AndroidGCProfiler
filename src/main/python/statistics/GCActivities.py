@@ -3,6 +3,17 @@ import time as Time
 
 
 class GCActivities:
+
+    def __init__(self, gcLines):
+
+        self.gcEvents = [] # list(GCEvent)
+        self.threadPauses = [] # list(ThreadPause)
+        for line in gcLines:
+            if (line.find("W/art: Suspending") != -1):
+                self.parseThreadPause(line)
+            elif (line.find("I/art:") != -1 and line.endswith("s")):
+                self.parseGCEvent(line)
+
     # line = Background partial concurrent mark sweep GC freed 22037(4MB) AllocSpace objects, 9(79MB) LOS objects, 7% free, 190MB/206MB, paused 50.117ms total 712.383ms
     def parseGCEvent(self, line):
         timeStr = line[0: line.find(' ', line.find(' ') + 1)]
@@ -10,11 +21,18 @@ class GCActivities:
         time = Time.strptime(timeStr, "%m-%d %H:%M:%S.%f")
         gcCause = line[line.find('art:') + 5: line.find('freed') - 1]
         freedObjNum = int(line[line.find('freed') + 6: line.find('(')])
-        freedObjSize = int(line[line.find('(') + 1: line.find('MB)')])
+        freedObjSizeStr = line[line.find('(') + 1: line.find('B)') + 1]
+        freedObjSize = self.parseByteSize(freedObjSizeStr)
+
         largeObjNum = int(line[line.find(',') + 2: line.rfind('(')])
-        largeObjSize = int(line[line.rfind('(') + 1: line.rfind('MB)')])
-        used = int(line[line.rfind('free,') + 6: line.rfind('MB/')])
-        allocated = int(line[line.rfind('/') + 1: line.rfind('MB')])
+        largeObjSizeStr = line[line.rfind('(') + 1: line.rfind('B)') + 1]
+        largeObjSize = self.parseByteSize(largeObjSizeStr)
+
+        usedStr = line[line.rfind('free,') + 6: line.rfind('B/') + 1]
+        used = self.parseByteSize(usedStr)
+        allocatedStr = line[line.rfind('/') + 1: line.rfind('B') + 1]
+        allocated = self.parseByteSize(allocatedStr)
+
         gcPauseStr = line[line.rfind('paused') + 7: line.rfind(' total')]
 
         if(gcPauseStr.endswith('us')):
@@ -37,7 +55,7 @@ class GCActivities:
 
         gcEvent = GCEvent(time, gcCause, freedObjNum, freedObjSize, largeObjNum, largeObjSize,
                           used, allocated, gcPauseTime, gcTotalTime)
-        gcEvent.println()
+        #gcEvent.println()
 
     def parseThreadPause(self, line):
         timeStr = line[0: line.find(' ', line.find(' ') + 1)]
@@ -53,16 +71,29 @@ class GCActivities:
         elif(pauseTotalStr.endswith('s')):
             pauseTotalTime = float(pauseTotalStr[0: pauseTotalStr.rfind('s')]) * 1000
 
-        print(str(time) + "|" + str(pauseTotalTime))
+        #print(str(time) + "|" + str(pauseTotalTime))
 
 
-if __name__ == '__main__':
+    # xxB, xxKB, xxMB, xxGB
+    def parseByteSize(self, sizeString):
+        if (sizeString.endswith("MB")):
+            return float(sizeString[0: len(sizeString) - 2])
+        elif (sizeString.endswith("GB")):
+            return float(sizeString[0: len(sizeString) - 2]) * 1024
+        elif (sizeString.endswith("KB")):
+            return float(sizeString[0: len(sizeString) - 2]) / 1024
+        else:
+            return float(sizeString[0: len(sizeString) - 1])
 
 
-    gcActivities = GCActivities()
-    line = "06-16 12:07:14.971 27469-27479/com.library.example.nin I/art: Background partial concurrent mark sweep GC freed 22037(4MB) AllocSpace objects, 9(79MB) LOS objects, " \
-           "7% free, 190MB/206MB, paused 50.117ms total 712.383ms"
-    threadPauseline = "06-16 12:07:18.646 27469-27479/com.library.example.nin W/art: Suspending all threads took: 7.230ms"
 
-    gcActivities.parseGCEvent(line)
-    gcActivities.parseThreadPause(threadPauseline)
+# if __name__ == '__main__':
+#
+#
+#     gcActivities = GCActivities()
+#     line = "06-16 12:07:14.971 27469-27479/com.library.example.nin I/art: Background partial concurrent mark sweep GC freed 22037(4MB) AllocSpace objects, 9(79MB) LOS objects, " \
+#            "7% free, 190MB/206MB, paused 50.117ms total 712.383ms"
+#     threadPauseline = "06-16 12:07:18.646 27469-27479/com.library.example.nin W/art: Suspending all threads took: 7.230ms"
+#
+#     gcActivities.parseGCEvent(line)
+#     gcActivities.parseThreadPause(threadPauseline)
