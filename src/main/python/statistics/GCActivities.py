@@ -1,24 +1,32 @@
 from statistics.GCEvent import GCEvent
-import time as Time
+from statistics.ThreadPause import ThreadPause
+import datetime as datetime
 
-
+# https://blog.gceasy.io/2017/05/09/understanding-android-gc-logs/
 class GCActivities:
 
     def __init__(self, gcLines):
-
+        self.startTime = 0
         self.gcEvents = [] # list(GCEvent)
         self.threadPauses = [] # list(ThreadPause)
         for line in gcLines:
+            if (self.startTime == 0):
+                timeStr = line[0: line.find(' ', line.find(' ') + 1)]
+                self.startTime = datetime.datetime.strptime(timeStr, "%m-%d %H:%M:%S.%f")
             if (line.find("W/art: Suspending") != -1):
                 self.parseThreadPause(line)
             elif (line.find("I/art:") != -1 and line.endswith("s")):
                 self.parseGCEvent(line)
 
+
+
     # line = Background partial concurrent mark sweep GC freed 22037(4MB) AllocSpace objects, 9(79MB) LOS objects, 7% free, 190MB/206MB, paused 50.117ms total 712.383ms
     def parseGCEvent(self, line):
         timeStr = line[0: line.find(' ', line.find(' ') + 1)]
         #print(timeStr)
-        time = Time.strptime(timeStr, "%m-%d %H:%M:%S.%f")
+        time = datetime.datetime.strptime(timeStr, "%m-%d %H:%M:%S.%f")
+        time = (time - self.startTime).total_seconds()
+
         gcCause = line[line.find('art:') + 5: line.find('freed') - 1]
         freedObjNum = int(line[line.find('freed') + 6: line.find('(')])
         freedObjSizeStr = line[line.find('(') + 1: line.find('B)') + 1]
@@ -56,11 +64,13 @@ class GCActivities:
         gcEvent = GCEvent(time, gcCause, freedObjNum, freedObjSize, largeObjNum, largeObjSize,
                           used, allocated, gcPauseTime, gcTotalTime)
         #gcEvent.println()
+        self.gcEvents.append(gcEvent)
 
     def parseThreadPause(self, line):
         timeStr = line[0: line.find(' ', line.find(' ') + 1)]
         #print(timeStr)
-        time = Time.strptime(timeStr, "%m-%d %H:%M:%S.%f")
+        time = datetime.datetime.strptime(timeStr, "%m-%d %H:%M:%S.%f")
+        time = (time - self.startTime).total_seconds()
 
         pauseTotalStr = line[line.rfind(':') + 2:]
         if(pauseTotalStr.endswith('us')):
@@ -73,6 +83,8 @@ class GCActivities:
 
         #print(str(time) + "|" + str(pauseTotalTime))
 
+        threadPause = ThreadPause(time, pauseTotalTime)
+        self.threadPauses.append(threadPause)
 
     # xxB, xxKB, xxMB, xxGB
     def parseByteSize(self, sizeString):
