@@ -3,13 +3,14 @@ from matplotlib import gridspec
 import matplotlib.dates as mdates
 import matplotlib as mpl
 import os, sys
+import numpy as np
 
 from datetime import datetime
 from reader import FileReader
 from statistics.GCActivities import GCActivities
 
 
-
+# ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 class HeapUsage:
     def __init__(self, gcActivities):
         self.gcActivities = gcActivities
@@ -41,7 +42,7 @@ class HeapUsage:
 
         return (timeList, gcPauseList)
 
-    def getTotalGCPauseAndTime(self):
+    def getAccumulatedGCPauseAndTime(self):
         timeList = []
         gcPauseList = []
         gcPause = 0
@@ -114,6 +115,17 @@ class HeapUsage:
 
         return (timeList, freedObjSizeList)
 
+    def getConcurrentGCAndTime(self, gcCause):
+        timeList = []
+        gcTotalTimeList = []
+
+        for gcEvent in gcActivities.gcEvents:
+            if (gcEvent.gcCause == gcCause):
+                timeList.append(gcEvent.time)
+                gcTotalTimeList.append(gcEvent.gcTotalTime - gcEvent.gcPauseTime)
+
+        return (timeList, gcTotalTimeList)
+
 
 def plotHeapUsage(appName, title, gcActivities):
 
@@ -121,7 +133,7 @@ def plotHeapUsage(appName, title, gcActivities):
 
     heapUsage = HeapUsage(gcActivities)
 
-    fig, axes = plt.subplots(nrows=3, ncols=1, sharey=False, sharex=True, figsize=(6.3, 4.5))
+    fig, axes = plt.subplots(nrows=3, ncols=1, sharey=False, sharex=True, figsize=(6.3, 5))
 
     plt.rc('font', family='Helvetica', size=12)
 
@@ -134,13 +146,20 @@ def plotHeapUsage(appName, title, gcActivities):
 
 
     axes[0].set_ylabel("GC Pause (ms)")
-    axes[1].set_ylabel("Total GC Pause (ms)")
+    axes[1].set_ylabel("GC Pause (ms)")
+    axes[2].set_ylabel("Concurrent GC (ms)")
+    axes[2].set_xlabel("Time (s)")
 
-    # axes[0].set_ylim(0, 400)  # The ceil
-    # axes[1].set_ylim(0, 65)
-    # axes[2].set_ylim(0, 400)
+    # axes[0].set_xlim(xmin=0)  # The ceil
+    # axes[1].set_xlim(xmin=0)
+    if (title == "Alexnet GC Metrics"):
+        axes[2].set_xlim(0, 110)
+    else:
+        axes[2].set_xlim(0, 60)
 
     # axes[1].set_ylim(0, 40)  # The ceil
+
+
 
 
     gcPauseAndTime1 = heapUsage.getGCPauseAndTime("Background partial concurrent mark sweep GC")
@@ -150,13 +169,50 @@ def plotHeapUsage(appName, title, gcActivities):
     gcPauseAndTime2 = heapUsage.getGCPauseAndTime("Background sticky concurrent mark sweep GC")
     #if (len(gcPauseAndTime2) != 0):
     if (title != "Alexnet GC Metrics"):
-        strict = axes[0].bar(gcPauseAndTime2[0], gcPauseAndTime2[1], 0.3, label='Background stricky CMS')
+        strict = axes[0].bar(gcPauseAndTime2[0], gcPauseAndTime2[1], 0.3, label='Background sticky CMS')
 
-    gcTotalPauseAndTime = heapUsage.getTotalGCPauseAndTime()
+
+
+
+
+    gcTotalPauseAndTime = heapUsage.getAccumulatedGCPauseAndTime()
     axes[1].plot(gcTotalPauseAndTime[0], gcTotalPauseAndTime[1], 'o-', linewidth=1.5, markersize=2, label='Accumulated GC Pause')
+    print(gcTotalPauseAndTime[1])
 
     axes[0].legend(frameon=False)
     axes[1].legend(frameon=False)
+
+
+    # if (title == "Alexnet GC Metrics"):
+    #     gcTotalTime = heapUsage.getConcurrentGCAndTime()
+    #     timelineList = gcTotalTime[0]
+    #     totalTimeList = gcTotalTime[1]
+    #     for i in np.arange(len(timelineList)):
+    #         xLoc = timelineList[i] - float(totalTimeList[i]) / 1000 / 2
+    #         axes[2].plot(xLoc, totalTimeList[i], 'bo', markersize=float(totalTimeList[i])/100)
+
+    gcTotalTime = heapUsage.getConcurrentGCAndTime("Background partial concurrent mark sweep GC")
+    timelineList = gcTotalTime[0]
+    if (timelineList):
+        totalTimeList = gcTotalTime[1]
+        for i in np.arange(len(timelineList)):
+            xLoc = timelineList[i] - float(totalTimeList[i]) / 1000 / 2
+            axes[2].plot(xLoc, totalTimeList[i], 'o', color='#1f77b4', markersize=float(totalTimeList[i])/100)
+        axes[2].plot(-1, 1, 'o', color='#1f77b4', markersize=3, label='Concurrent GC time of partial CMS')
+
+    gcTotalTime = heapUsage.getConcurrentGCAndTime("Background sticky concurrent mark sweep GC")
+    timelineList = gcTotalTime[0]
+    if (timelineList):
+        totalTimeList = gcTotalTime[1]
+        for i in np.arange(len(timelineList)):
+            xLoc = timelineList[i] - float(totalTimeList[i]) / 1000 / 2
+            axes[2].plot(xLoc, totalTimeList[i], 'o', color='#ff7f0e', markersize=float(totalTimeList[i])/100)
+        axes[2].plot(-1, 1, 'o', color='#ff7f0e', markersize=3, label='Concurrent GC time of sticky CMS')
+
+    if (title == "Alexnet GC Metrics"):
+        axes[2].legend(frameon=False, loc='lower right')
+    else:
+        axes[2].legend(frameon=False, loc='uppper left')
 
     #
     # axes[0].grid(False)
@@ -206,7 +262,7 @@ def plotHeapUsage(appName, title, gcActivities):
     #plt.show()
     #fig.savefig(outputFile, dpi=300, bbox_inches='tight')
 
-
+    #print plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
 if __name__ == '__main__':
